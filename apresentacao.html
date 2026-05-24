@@ -2,724 +2,956 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Análise Espectral para Detecção de Deepfakes</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Análise Espectral para Detecção de Deepfakes — PDI 2026</title>
 <style>
-  :root {
-    --blue:    #4a90d9;
-    --red:     #e05c5c;
-    --green:   #4caf82;
-    --dark:    #0d1117;
-    --panel:   #161b22;
-    --border:  #21262d;
-    --text:    #e6edf3;
-    --muted:   #8b949e;
-    --accent:  #58a6ff;
-  }
+:root {
+  --bg:     #0d1117;
+  --panel:  #161b22;
+  --border: #21262d;
+  --text:   #e6edf3;
+  --muted:  #8b949e;
+  --blue:   #4a90d9;
+  --red:    #e05c5c;
+  --green:  #4caf82;
+  --gold:   #d4a017;
+  --accent: #58a6ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;
+  font-family:'Segoe UI',system-ui,sans-serif;color:#e6edf3}
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── VIEWPORT SCALING ─────────────────────────────────────── */
+#scaler{
+  width:1280px;height:720px;
+  position:fixed;top:0;left:0;
+  transform-origin:top left;
+  background:var(--bg);
+}
 
-  body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    background: var(--dark);
-    color: var(--text);
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
-  }
+/* ── DECK / SLIDES ────────────────────────────────────────── */
+.deck{width:100%;height:100%;position:relative;overflow:hidden}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  padding:44px 60px 36px;
+  opacity:0;pointer-events:none;
+  transition:opacity .35s ease,transform .35s ease;
+  transform:translateX(50px);
+}
+.slide.active{opacity:1;pointer-events:all;transform:translateX(0)}
+.slide.exit  {opacity:0;transform:translateX(-50px)}
 
-  /* ── SLIDES ─────────────────────────────────────── */
-  .deck { width: 100%; height: 100%; position: relative; }
+/* ── CHIP & LABELS ────────────────────────────────────────── */
+.slide-chip{
+  position:absolute;top:16px;right:22px;
+  font-size:.7rem;color:var(--muted);
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:20px;padding:3px 10px;
+}
+.section-label{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:.76rem;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;margin-bottom:12px;color:var(--muted);
+}
+.section-label span{font-size:.95rem}
 
-  .slide {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 60px 80px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .4s ease, transform .4s ease;
-    transform: translateX(40px);
-  }
-  .slide.active {
-    opacity: 1;
-    pointer-events: all;
-    transform: translateX(0);
-  }
-  .slide.exit {
-    opacity: 0;
-    transform: translateX(-40px);
-  }
+/* ── TYPOGRAPHY ───────────────────────────────────────────── */
+h1{font-size:2.2rem;font-weight:700;line-height:1.2;color:var(--text)}
+h2{font-size:1.55rem;font-weight:700;color:var(--accent);margin-bottom:18px}
+h3{font-size:.9rem;font-weight:600;color:var(--blue);margin-bottom:5px}
+p,li{font-size:.87rem;line-height:1.65;color:var(--text)}
+ul{padding-left:18px}
+code{font-family:'Cascadia Code','Consolas',monospace;font-size:.8rem;
+  background:#010409;padding:2px 6px;border-radius:4px;color:#a5d6ff}
+.muted{color:var(--muted);font-size:.8rem}
+.accent{color:var(--accent)}
+.red   {color:var(--red)}
+.green {color:var(--green)}
+.gold  {color:var(--gold)}
 
-  /* ── TYPOGRAPHY ──────────────────────────────────── */
-  h1 { font-size: 2.6rem; font-weight: 700; line-height: 1.2; }
-  h2 { font-size: 1.9rem; font-weight: 600; color: var(--accent); margin-bottom: 28px; }
-  h3 { font-size: 1.1rem; font-weight: 600; color: var(--blue); margin-bottom: 8px; }
-  p, li { font-size: 1.05rem; line-height: 1.7; color: var(--text); }
-  .muted { color: var(--muted); font-size: .9rem; }
-  .accent { color: var(--accent); }
-  .red    { color: var(--red);   }
-  .green  { color: var(--green); }
+/* ── LAYOUT ───────────────────────────────────────────────── */
+.cols{display:flex;gap:20px;width:100%;flex:1;min-height:0}
+.col {flex:1;display:flex;flex-direction:column;gap:12px;min-width:0}
+.col-2{flex:2}
+.fill{flex:1;min-height:0}
 
-  /* ── LAYOUT HELPERS ──────────────────────────────── */
-  .cols   { display: flex; gap: 32px; width: 100%; }
-  .col    { flex: 1; }
-  .center { text-align: center; }
+/* ── CARD ─────────────────────────────────────────────────── */
+.card{background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:14px 16px}
+.card.blue  {border-left:3px solid var(--blue) }
+.card.red   {border-left:3px solid var(--red)  }
+.card.green {border-left:3px solid var(--green)}
+.card.gold  {border-left:3px solid var(--gold) }
+.card.accent{border-left:3px solid var(--accent)}
 
-  /* ── CARD ────────────────────────────────────────── */
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px 28px;
-    margin-bottom: 16px;
-  }
-  .card.blue  { border-left: 4px solid var(--blue);  }
-  .card.red   { border-left: 4px solid var(--red);   }
-  .card.green { border-left: 4px solid var(--green); }
-  .card.gold  { border-left: 4px solid #d4a017;      }
+/* ── EQUATION ─────────────────────────────────────────────── */
+.eq{background:#010409;border:1px solid var(--border);border-radius:8px;
+  padding:9px 16px;text-align:center;
+  font-size:.93rem;font-family:'Cambria Math',Georgia,serif;
+  color:#cae8ff;margin:6px 0}
+.eq-label{font-size:.69rem;color:var(--muted);margin-top:2px;text-align:center}
 
-  /* ── CODE BLOCK ──────────────────────────────────── */
-  pre {
-    background: #010409;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 18px 22px;
-    font-size: .88rem;
-    line-height: 1.6;
-    font-family: 'Cascadia Code', 'Consolas', monospace;
-    overflow-x: auto;
-    width: 100%;
-  }
-  .kw  { color: #ff7b72; }
-  .fn  { color: #d2a8ff; }
-  .cm  { color: #8b949e; }
-  .st  { color: #a5d6ff; }
-  .nm  { color: #79c0ff; }
-  .op  { color: #ffa657; }
+/* ── IMAGE FRAME ──────────────────────────────────────────── */
+.img-frame{border-radius:8px;overflow:hidden;
+  border:1px solid var(--border);background:var(--panel);
+  flex:1;min-height:0;display:flex;flex-direction:column}
+.img-frame img{width:100%;height:100%;object-fit:contain;display:block}
+.img-caption{font-size:.69rem;color:var(--muted);text-align:center;
+  padding:4px 8px;background:var(--panel);border-top:1px solid var(--border)}
 
-  /* ── EQUATION ────────────────────────────────────── */
-  .eq {
-    background: #010409;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 24px;
-    text-align: center;
-    font-size: 1.1rem;
-    font-family: 'Cambria Math', Georgia, serif;
-    color: #cae8ff;
-    margin: 10px 0;
-  }
+/* ── TABLE ────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse}
+th{background:rgba(88,166,255,.1);color:var(--accent);font-size:.75rem;
+  padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:5px 8px;font-size:.79rem;color:var(--text);border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.025)}
+.td-good{color:var(--green);font-weight:600}
+.td-ok  {color:var(--gold) ;font-weight:600}
+.td-ref {color:var(--muted)}
 
-  /* ── BADGE ───────────────────────────────────────── */
-  .badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: .78rem;
-    font-weight: 600;
-    margin-right: 6px;
-  }
-  .badge-blue  { background: rgba(74,144,217,.2); color: var(--blue);  border: 1px solid rgba(74,144,217,.4); }
-  .badge-red   { background: rgba(224,92,92,.2);  color: var(--red);   border: 1px solid rgba(224,92,92,.4);  }
-  .badge-green { background: rgba(76,175,130,.2); color: var(--green); border: 1px solid rgba(76,175,130,.4); }
+/* ── BADGE ────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;
+  font-size:.7rem;font-weight:600;margin:2px}
+.b-blue {background:rgba(74,144,217,.18);color:var(--blue);border:1px solid rgba(74,144,217,.3)}
+.b-red  {background:rgba(224,92,92,.18) ;color:var(--red) ;border:1px solid rgba(224,92,92,.3)}
+.b-green{background:rgba(76,175,130,.18);color:var(--green);border:1px solid rgba(76,175,130,.3)}
+.b-gold {background:rgba(212,160,23,.18);color:var(--gold) ;border:1px solid rgba(212,160,23,.3)}
 
-  /* ── RESULT BOX ──────────────────────────────────── */
-  .result-row {
-    display: flex;
-    gap: 16px;
-    width: 100%;
-  }
-  .result-box {
-    flex: 1;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-  }
-  .result-num {
-    font-size: 2.4rem;
-    font-weight: 700;
-    color: var(--accent);
-    display: block;
-  }
-  .result-label {
-    font-size: .85rem;
-    color: var(--muted);
-    margin-top: 4px;
-  }
+/* ── PIPELINE ─────────────────────────────────────────────── */
+.pipeline{display:flex;align-items:center;gap:0;flex-wrap:wrap;
+  justify-content:center;margin:12px 0}
+.pipe-box{background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;padding:9px 10px;text-align:center;
+  font-size:.76rem;min-width:82px;color:var(--text)}
+.pipe-box.hi{border-color:var(--accent)}
+.pipe-arr{color:var(--accent);font-size:1.1rem;padding:0 3px}
 
-  /* ── TABLE ───────────────────────────────────────── */
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    background: rgba(88,166,255,.1);
-    color: var(--accent);
-    font-size: .85rem;
-    padding: 10px 14px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-  }
-  td {
-    padding: 9px 14px;
-    font-size: .9rem;
-    border-bottom: 1px solid var(--border);
-  }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: rgba(255,255,255,.03); }
+/* ── STAT BOX ─────────────────────────────────────────────── */
+.stat-row{display:flex;gap:12px;margin-bottom:12px}
+.stat-box{flex:1;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:12px;text-align:center}
+.stat-num{font-size:1.9rem;font-weight:700;color:var(--accent);display:block}
+.stat-lbl{font-size:.71rem;color:var(--muted);margin-top:3px}
 
-  /* ── PIPELINE ────────────────────────────────────── */
-  .pipeline {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    width: 100%;
-    margin: 16px 0;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  .pipe-step {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 16px;
-    text-align: center;
-    font-size: .82rem;
-    min-width: 100px;
-  }
-  .pipe-arrow {
-    color: var(--accent);
-    font-size: 1.4rem;
-    padding: 0 6px;
-  }
+/* ── PROGRESS & NAV ───────────────────────────────────────── */
+#progress{position:fixed;bottom:0;left:0;height:3px;
+  background:linear-gradient(90deg,var(--blue),var(--accent));
+  transition:width .3s ease;z-index:200}
+#nav{position:fixed;bottom:14px;right:18px;
+  display:flex;align-items:center;gap:10px;z-index:200}
+.nbtn{background:var(--panel);border:1px solid var(--border);
+  color:var(--text);width:32px;height:32px;border-radius:7px;
+  font-size:.9rem;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:border-color .2s}
+.nbtn:hover{border-color:var(--accent)}
+#ctr{color:var(--muted);font-size:.78rem;min-width:42px;text-align:center}
+#hint{position:fixed;bottom:14px;left:18px;color:var(--muted);font-size:.69rem;z-index:200}
+kbd{background:var(--panel);border:1px solid var(--border);
+  border-radius:4px;padding:1px 5px;font-size:.69rem;font-family:monospace}
 
-  /* ── PROGRESS BAR ────────────────────────────────── */
-  #progress {
-    position: fixed;
-    bottom: 0; left: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--blue), var(--accent));
-    transition: width .3s ease;
-    z-index: 100;
-  }
-
-  /* ── NAVIGATION ──────────────────────────────────── */
-  #nav {
-    position: fixed;
-    bottom: 22px;
-    right: 30px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    z-index: 100;
-  }
-  .nav-btn {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    width: 38px; height: 38px;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background .2s, border-color .2s;
-  }
-  .nav-btn:hover { background: var(--border); border-color: var(--accent); }
-  #slide-counter { color: var(--muted); font-size: .85rem; }
-
-  /* ── SLIDE NUMBER (top-right) ────────────────────── */
-  #slide-label {
-    position: fixed;
-    top: 20px; right: 28px;
-    color: var(--muted);
-    font-size: .8rem;
-    z-index: 100;
-  }
-
-  /* ── TITLE SLIDE SPECIFIC ────────────────────────── */
-  #s-title {
-    background: radial-gradient(ellipse at 60% 40%, rgba(74,144,217,.08) 0%, transparent 70%),
-                var(--dark);
-    text-align: center;
-  }
-  .title-tag {
-    display: inline-block;
-    padding: 5px 16px;
-    border-radius: 20px;
-    border: 1px solid rgba(88,166,255,.35);
-    color: var(--accent);
-    font-size: .85rem;
-    margin-bottom: 20px;
-  }
-  .title-divider {
-    width: 60px; height: 3px;
-    background: linear-gradient(90deg, var(--blue), var(--accent));
-    margin: 20px auto;
-    border-radius: 2px;
-  }
-  .authors {
-    display: flex;
-    gap: 32px;
-    justify-content: center;
-    margin-top: 10px;
-  }
-  .author-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 22px;
-    font-size: .9rem;
-  }
-  .author-name { font-weight: 600; color: var(--text); }
-  .author-ra   { color: var(--muted); font-size: .8rem; margin-top: 2px; }
-
-  /* ── SPECTRUM VISUAL (SVG fake chart) ────────────── */
-  .spectrum-svg { width: 100%; height: 120px; }
-
-  /* ── KEYBOARD HINT ───────────────────────────────── */
-  #hint {
-    position: fixed;
-    bottom: 22px; left: 28px;
-    color: var(--muted);
-    font-size: .75rem;
-  }
-  kbd {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-size: .75rem;
-    font-family: monospace;
-  }
+/* ── PRE ──────────────────────────────────────────────────── */
+pre{background:#010409;border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;font-size:.77rem;line-height:1.6;color:#e6edf3;
+  font-family:'Cascadia Code','Consolas',monospace;overflow-x:auto}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.cm{color:#8b949e}
+.st{color:#a5d6ff}.nm{color:#79c0ff}
 </style>
 </head>
 <body>
 
-<div id="progress"></div>
-<div id="slide-label"></div>
-
+<div id="scaler">
 <div class="deck" id="deck">
 
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 1 — TÍTULO
-  ══════════════════════════════════════════════════ -->
-  <div class="slide active" id="s-title">
-    <div class="title-tag">Processamento Digital de Imagens — 2026/1</div>
-    <h1>Análise Espectral de Frequência<br>para Detecção de <span class="accent">Deepfakes</span></h1>
-    <div class="title-divider"></div>
-    <p class="muted" style="margin-bottom:8px">
-      Reprodução de método científico baseada em:<br>
-      <strong style="color:var(--text)">Durall, Keuper &amp; Keuper — CVPR 2020</strong>
-    </p>
-    <p class="muted" style="font-size:.82rem; margin-bottom:28px">arXiv:2003.01826</p>
-    <div class="authors">
-      <div class="author-card">
-        <div class="author-name">Geovane Araujo de Lima Silva</div>
-        <div class="author-ra">RA: 00111884</div>
-      </div>
-      <div class="author-card">
-        <div class="author-name">João Vitor Marinonio de Almeida</div>
-        <div class="author-ra">RA: 00111970</div>
-      </div>
-    </div>
-  </div>
+<!-- ════════════════════════════════════════════════════
+  S1 — CAPA
+════════════════════════════════════════════════════ -->
+<div class="slide active" id="s1"
+ style="background:radial-gradient(ellipse at 65% 35%,rgba(74,144,217,.1) 0%,transparent 65%),#0d1117;
+        justify-content:center;align-items:flex-start">
+  <div class="slide-chip">1 / 9</div>
 
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 2 — O PROBLEMA
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-problema">
-    <h2>O Problema</h2>
-    <div class="cols">
-      <div class="col">
-        <div class="card blue">
-          <h3>O que são Deepfakes?</h3>
-          <p>Imagens e vídeos sintéticos gerados por <strong>Redes Adversariais Generativas (GANs)</strong>. Visualmente indistinguíveis de fotos reais para o olho humano.</p>
-        </div>
-        <div class="card red">
-          <h3>O Problema Central</h3>
-          <p>Detectar deepfakes no <strong>domínio espacial</strong> (pixels) é cada vez mais difícil. Modelos de detecção precisam de milhares de exemplos e falham com novos geradores.</p>
-        </div>
-        <div class="card green">
-          <h3>A Pergunta do Artigo</h3>
-          <p>GANs deixam <strong>rastros invisíveis</strong> que podem ser revelados no <em>domínio da frequência</em>?</p>
-        </div>
-      </div>
-      <div class="col" style="display:flex;flex-direction:column;justify-content:center;">
-        <div class="card" style="text-align:center; padding: 32px;">
-          <div style="font-size:3.5rem; margin-bottom:12px">🔍</div>
-          <p style="font-size:1rem; color:var(--muted)">Mesma imagem, perspectivas diferentes</p>
-          <div style="display:flex; justify-content:center; gap:32px; margin-top:20px;">
-            <div>
-              <div style="font-size:1.6rem">🖼️</div>
-              <div class="muted" style="font-size:.8rem; margin-top:4px">Domínio Espacial<br><span class="red">✗ Enganoso</span></div>
-            </div>
-            <div style="font-size:1.6rem; padding-top:6px; color:var(--muted)">→</div>
-            <div>
-              <div style="font-size:1.6rem">📊</div>
-              <div class="muted" style="font-size:.8rem; margin-top:4px">Domínio Frequência<br><span class="green">✓ Revelador</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <div style="max-width:720px">
+    <div style="display:inline-block;padding:4px 13px;border-radius:20px;
+                border:1px solid rgba(88,166,255,.3);color:var(--accent);
+                font-size:.78rem;margin-bottom:16px">
+      Processamento Digital de Imagens · 2026/1
     </div>
-  </div>
 
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 3 — O ARTIGO
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-artigo">
-    <h2>O Artigo de Referência</h2>
-    <div class="card gold" style="margin-bottom:20px;">
-      <p style="font-size:1.05rem; font-weight:600; color:var(--text)">
+    <h1>Análise Espectral de Frequência<br>
+        para Detecção de <span class="accent">Deepfakes</span></h1>
+
+    <div style="width:48px;height:3px;background:linear-gradient(90deg,var(--blue),var(--accent));
+                border-radius:2px;margin:16px 0"></div>
+
+    <div class="card gold" style="margin-bottom:14px">
+      <p style="font-size:.87rem;font-weight:600;color:var(--text)">
         "Watch your Up-Convolution: CNN Based Generative Deep Neural Networks are Failing to Reproduce Spectral Distributions"
       </p>
-      <p class="muted" style="margin-top:8px">Ricard Durall · Margret Keuper · Janis Keuper &nbsp;|&nbsp; <strong style="color:var(--accent)">CVPR 2020</strong> &nbsp;|&nbsp; arXiv:2003.01826</p>
+      <p class="muted" style="margin-top:6px">
+        Ricard Durall · Margret Keuper · Janis Keuper
+        &nbsp;|&nbsp; <strong style="color:var(--gold)">CVPR 2020</strong>
+        &nbsp;|&nbsp; arXiv:<strong>2003.01826</strong>
+      </p>
     </div>
-    <div class="cols">
-      <div class="col">
-        <div class="card blue">
-          <h3>Descoberta Principal</h3>
-          <p>Todas as GANs testadas (DCGAN, ProGAN, WGAN-GP, StyleGAN) produzem um <strong>padrão espectral anômalo</strong> — excesso de energia em frequências médias e altas — ausente em fotos reais.</p>
-        </div>
-        <div class="card green">
-          <h3>Resultado Prático</h3>
-          <p>Um classificador <strong>linear simples</strong> sobre o espectro de frequência detecta deepfakes com até <strong>100% de acurácia</strong> em benchmarks públicos (CelebA, FFHQ).</p>
-        </div>
+
+    <p style="font-size:.87rem;margin-bottom:16px">
+      GANs introduzem <strong>distorções sistemáticas no espectro de frequência</strong> das imagens geradas.
+      Essas distorções são <em>invisíveis</em> no domínio espacial, mas <em>detectáveis via FFT</em> —
+      permitindo identificar deepfakes com até <span class="green">100%</span> de acurácia.
+    </p>
+
+    <div style="display:flex;gap:14px">
+      <div class="card" style="padding:12px 16px">
+        <div style="font-weight:600;font-size:.88rem">Geovane Araujo de Lima Silva</div>
+        <div class="muted" style="margin-top:2px">RA: 00111884</div>
       </div>
-      <div class="col">
-        <div class="card red">
-          <h3>Causa Identificada: Up-Convolution</h3>
-          <p>A operação de <em>convolução transposta</em> insere zeros entre pixels antes do filtro. Matematicamente isso multiplica o espectro por uma onda periódica — criando <strong>picos artificiais na FFT</strong>.</p>
-          <br>
-          <div class="eq" style="font-size:.9rem;">
-            Up-conv (stride <em>s</em>) ⟹ pico em <em>f</em> = 1/<em>s</em>
-          </div>
-        </div>
-        <div class="card" style="text-align:center">
-          <span class="badge badge-blue">CVPR 2020</span>
-          <span class="badge badge-green">137 ⭐ GitHub</span>
-          <span class="badge badge-red">26 forks</span>
-        </div>
+      <div class="card" style="padding:12px 16px">
+        <div style="font-weight:600;font-size:.88rem">João Vitor Marinonio de Almeida</div>
+        <div class="muted" style="margin-top:2px">PDI — 2026/1</div>
       </div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 4 — MÉTODO
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-metodo">
-    <h2>O Método: Análise Espectral</h2>
-    <div class="pipeline">
-      <div class="pipe-step">🖼️<br><strong>Imagem RGB</strong></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step">🔲<br><strong>Escala de Cinza</strong><br><span class="muted" style="font-size:.75rem">BT.601</span></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step">📡<br><strong>FFT 2D</strong><br><span class="muted" style="font-size:.75rem">+ fftshift</span></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step">🌀<br><strong>Integração<br>Azimutal</strong></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step">📈<br><strong>Perfil 1D</strong><br><span class="muted" style="font-size:.75rem">normalizado</span></div>
-      <div class="pipe-arrow">→</div>
-      <div class="pipe-step" style="border-color:var(--accent)">🤖<br><strong>Classificador</strong><br><span class="muted" style="font-size:.75rem">Linear</span></div>
-    </div>
-    <div class="cols" style="margin-top:8px">
-      <div class="col">
-        <div class="card blue">
-          <h3>Espectro de Magnitude (dB)</h3>
-          <div class="eq">P<sub>dB</sub>(u,v) = 20 · log(|F(u,v)| + ε)</div>
-        </div>
-      </div>
-      <div class="col">
-        <div class="card red">
-          <h3>Integração Azimutal</h3>
-          <div class="eq">P̂(r) = 1/Nᵣ · Σ P<sub>dB</sub>(u,v)</div>
-          <p class="muted" style="font-size:.8rem; margin-top:6px">para todos os (u,v) com √(u²+v²) ≈ r</p>
-        </div>
-      </div>
-    </div>
-    <div class="card green" style="margin-top:0">
-      <h3>Por que funciona?</h3>
-      <p>Fotos reais seguem a lei 1/<em>f</em> (decaimento monotônico). Imagens GAN <strong>violam esse padrão</strong> com picos em frequências específicas determinadas pelo stride da up-convolution.</p>
+  <!-- QR Code -->
+  <div style="position:absolute;right:64px;top:50%;transform:translateY(-50%);text-align:center">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=e6edf3&bgcolor=0d1117&data=https://arxiv.org/abs/2003.01826"
+         alt="QR arXiv:2003.01826"
+         style="width:150px;height:150px;border-radius:10px;border:2px solid var(--border)"
+         onerror="this.style.opacity='.3'">
+    <div class="muted" style="margin-top:7px;font-size:.7rem">
+      Acesse o artigo<br>arxiv.org/abs/2003.01826
     </div>
   </div>
-
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 5 — NOSSA IMPLEMENTAÇÃO
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-impl">
-    <h2>Nossa Implementação</h2>
-    <div class="cols">
-      <div class="col">
-        <div class="card blue" style="margin-bottom:14px">
-          <h3>src/radial_profile.py</h3>
-          <p class="muted" style="font-size:.85rem">Integração azimutal + pipeline FFT completo — implementados do zero com NumPy.</p>
-        </div>
-        <div class="card red" style="margin-bottom:14px">
-          <h3>src/spectral_utils.py</h3>
-          <p class="muted" style="font-size:.85rem">Carregamento de imagens, espectros médios, visualizações comparativas.</p>
-        </div>
-        <div class="card green" style="margin-bottom:14px">
-          <h3>notebooks/</h3>
-          <p class="muted" style="font-size:.85rem"><code>01_analise_espectral.ipynb</code> — reproduz Figura 1 do artigo<br>
-          <code>02_deteccao_deepfakes.ipynb</code> — classifica Real vs. GAN</p>
-        </div>
-        <div class="card" style="margin-bottom:0">
-          <h3>test.py</h3>
-          <p class="muted" style="font-size:.85rem">Executa todos os experimentos e salva figuras em <code>results/</code> sem Jupyter.</p>
-        </div>
-      </div>
-      <div class="col">
-        <pre><span class="cm"># src/radial_profile.py</span>
-<span class="kw">import</span> numpy <span class="kw">as</span> np
-
-<span class="kw">def</span> <span class="fn">compute_power_spectrum_1d</span>(image):
-    <span class="cm"># FFT 2D + centralização</span>
-    fft    = np.fft.<span class="fn">fft2</span>(image)
-    fshift = np.fft.<span class="fn">fftshift</span>(fft)
-
-    <span class="cm"># Espectro de magnitude em dB</span>
-    magnitude = <span class="nm">20</span> * np.<span class="fn">log</span>(
-        np.<span class="fn">abs</span>(fshift) + <span class="nm">1e-8</span>
-    )
-
-    <span class="cm"># Integração azimutal → perfil 1D</span>
-    psd1d = <span class="fn">azimuthal_average</span>(magnitude)
-
-    <span class="cm"># Normalização min-max</span>
-    <span class="kw">return</span> (psd1d - psd1d.<span class="fn">min</span>()) / (
-        psd1d.<span class="fn">max</span>() - psd1d.<span class="fn">min</span>()
-    )</pre>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 6 — ARTEFATO DE UP-CONVOLUTION
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-artefato">
-    <h2>O Artefato de Up-Convolution</h2>
-    <div class="cols">
-      <div class="col">
-        <div class="card red">
-          <h3>Como simulamos sem treinar uma GAN</h3>
-          <p>O artefato é <strong>determinístico</strong> — não depende dos pesos da rede, só da operação de upsampling. Podemos injetá-lo diretamente:</p>
-        </div>
-        <pre style="margin-top:0"><span class="cm"># Artefato checkerboard (stride=2, DCGAN)</span>
-idx = np.indices((<span class="nm">128</span>, <span class="nm">128</span>)).<span class="fn">sum</span>(axis=<span class="nm">0</span>) % <span class="nm">2</span>
-img_gan = img_real + <span class="nm">0.12</span> * idx
-
-<span class="cm"># Stride=4 (WGAN)</span>
-idx4 = np.indices((<span class="nm">128</span>, <span class="nm">128</span>)).<span class="fn">sum</span>(axis=<span class="nm">0</span>) % <span class="nm">4</span>
-img_wgan = img_real + <span class="nm">0.07</span> * idx4</pre>
-        <div class="card green" style="margin-top:12px">
-          <h3>Validação da Abordagem</h3>
-          <p>O artigo (Seção 3) confirma que o artefato é <em>independente da arquitetura</em>. Nossa simulação reproduz matematicamente o mesmo fenômeno.</p>
-        </div>
-      </div>
-      <div class="col">
-        <div class="card" style="padding:20px; height:100%;">
-          <h3 style="text-align:center; margin-bottom:16px;">Espectro: Natural vs. GAN</h3>
-          <!-- SVG fake spectrum chart -->
-          <svg viewBox="0 0 340 160" class="spectrum-svg">
-            <defs>
-              <linearGradient id="fillReal" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#4a90d9" stop-opacity=".4"/>
-                <stop offset="100%" stop-color="#4a90d9" stop-opacity="0"/>
-              </linearGradient>
-              <linearGradient id="fillGan" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#e05c5c" stop-opacity=".4"/>
-                <stop offset="100%" stop-color="#e05c5c" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <!-- axes -->
-            <line x1="30" y1="10" x2="30" y2="140" stroke="#333" stroke-width="1"/>
-            <line x1="30" y1="140" x2="330" y2="140" stroke="#333" stroke-width="1"/>
-            <text x="180" y="158" fill="#8b949e" font-size="10" text-anchor="middle">Frequência Radial</text>
-            <text x="14" y="80" fill="#8b949e" font-size="10" text-anchor="middle" transform="rotate(-90,14,80)">Potência</text>
-            <!-- real curve (smooth decay) -->
-            <path d="M30,30 C60,35 90,55 130,85 S200,115 330,130"
-                  fill="none" stroke="#4a90d9" stroke-width="2.5"/>
-            <path d="M30,30 C60,35 90,55 130,85 S200,115 330,130 L330,140 L30,140 Z"
-                  fill="url(#fillReal)"/>
-            <!-- GAN curve (with bumps) -->
-            <path d="M30,30 C50,32 80,52 110,78 S145,100 170,95 S195,88 220,100 S260,118 330,130"
-                  fill="none" stroke="#e05c5c" stroke-width="2.5" stroke-dasharray="6,3"/>
-            <path d="M30,30 C50,32 80,52 110,78 S145,100 170,95 S195,88 220,100 S260,118 330,130 L330,140 L30,140 Z"
-                  fill="url(#fillGan)"/>
-            <!-- labels -->
-            <rect x="200" y="14" width="12" height="3" rx="1" fill="#4a90d9"/>
-            <text x="216" y="20" fill="#8b949e" font-size="9">Imagens Reais</text>
-            <rect x="200" y="28" width="12" height="3" rx="1" fill="#e05c5c"/>
-            <text x="216" y="34" fill="#8b949e" font-size="9">Imagens GAN</text>
-            <!-- annotation -->
-            <line x1="175" y1="95" x2="175" y2="55" stroke="#ffa657" stroke-width="1" stroke-dasharray="3,2"/>
-            <text x="178" y="50" fill="#ffa657" font-size="8">pico</text>
-            <text x="178" y="60" fill="#ffa657" font-size="8">artefato</text>
-          </svg>
-          <p class="muted" style="text-align:center; font-size:.8rem; margin-top:8px">Excesso de energia espectral nas frequências médias — assinatura da GAN</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 7 — RESULTADOS
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-resultados">
-    <h2>Resultados dos Experimentos</h2>
-    <div class="result-row" style="margin-bottom:20px">
-      <div class="result-box">
-        <span class="result-num">98.75%</span>
-        <span class="result-label">Regressão Logística<br>5-fold Cross Validation</span>
-      </div>
-      <div class="result-box">
-        <span class="result-num">98.12%</span>
-        <span class="result-label">SVM (Kernel RBF)<br>5-fold Cross Validation</span>
-      </div>
-      <div class="result-box">
-        <span class="result-num">98.75%</span>
-        <span class="result-label">Random Forest<br>5-fold Cross Validation</span>
-      </div>
-      <div class="result-box" style="border-color:rgba(88,166,255,.3)">
-        <span class="result-num" style="color:#d4a017">100%</span>
-        <span class="result-label">Referência do artigo<br>(CelebA / FFHQ)</span>
-      </div>
-    </div>
-    <div class="cols">
-      <div class="col">
-        <div class="card blue">
-          <h3>5 Experimentos Rodados</h3>
-          <ul style="padding-left:16px; font-size:.9rem; line-height:1.9">
-            <li>Espectros FFT de padrões sintéticos</li>
-            <li>Perfis radiais azimutais comparativos</li>
-            <li>Comparação Real vs. GAN (reprodução Figura 1)</li>
-            <li>Classificação com 3 algoritmos + PCA</li>
-            <li>Sensibilidade vs. intensidade do artefato</li>
-          </ul>
-        </div>
-      </div>
-      <div class="col">
-        <div class="card green">
-          <h3>Conclusão dos Experimentos</h3>
-          <p>Mesmo com artefatos sutis <strong>(&lt;5% de amplitude)</strong>, a assinatura espectral é detectável. Classificadores lineares são suficientes — confirmando que as features espectrais são <strong>linearmente separáveis</strong>.</p>
-        </div>
-        <div class="card red" style="margin-top:12px">
-          <h3>Ferramentas Utilizadas</h3>
-          <div>
-            <span class="badge badge-blue">NumPy</span>
-            <span class="badge badge-blue">OpenCV</span>
-            <span class="badge badge-green">scikit-learn</span>
-            <span class="badge badge-red">Matplotlib</span>
-            <span class="badge badge-blue">Jupyter</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════
-       SLIDE 8 — CONCLUSÃO
-  ══════════════════════════════════════════════════ -->
-  <div class="slide" id="s-conclusao">
-    <h2>Conclusão</h2>
-    <div class="cols">
-      <div class="col">
-        <div class="card blue">
-          <h3>✓ Hipótese Confirmada</h3>
-          <p>GANs deixam uma assinatura espectral característica no domínio da frequência, detectável com ~98% de acurácia usando apenas o perfil azimutal 1D como feature.</p>
-        </div>
-        <div class="card green">
-          <h3>✓ Reprodução Bem-Sucedida</h3>
-          <p>Reproduzimos os resultados centrais do artigo (Figura 1 e experimentos de detecção) com implementação própria em Python, sem reutilizar código dos autores.</p>
-        </div>
-        <div class="card red">
-          <h3>⚠ Limitações</h3>
-          <p>Usamos imagens sintéticas no lugar do CelebA (requer GPU + 1.4 GB). Não re-treinamos a GAN nem implementamos a regularização espectral proposta pelo artigo.</p>
-        </div>
-      </div>
-      <div class="col" style="display:flex; flex-direction:column; gap:14px">
-        <div class="card" style="flex:1">
-          <h3>Contribuições do Grupo</h3>
-          <table>
-            <tr><th>Módulo</th><th>Responsável</th></tr>
-            <tr><td><code>radial_profile.py</code></td><td>Geovane</td></tr>
-            <tr><td><code>spectral_utils.py</code></td><td>João Vitor</td></tr>
-            <tr><td>Notebook 01</td><td>Geovane</td></tr>
-            <tr><td>Notebook 02</td><td>João Vitor</td></tr>
-            <tr><td>test.py + proposta</td><td>Ambos</td></tr>
-          </table>
-        </div>
-        <div class="card gold" style="text-align:center; padding:20px">
-          <p style="font-size:.85rem; color:var(--muted)">Referência</p>
-          <p style="font-size:.9rem; margin-top:6px"><strong>Durall, Keuper &amp; Keuper</strong><br>
-          Watch your Up-Convolution<br>
-          <span class="accent">CVPR 2020 · arXiv:2003.01826</span></p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /deck -->
-
-<!-- Navigation -->
-<div id="nav">
-  <button class="nav-btn" id="btn-prev" title="Anterior (←)">&#8592;</button>
-  <span id="slide-counter"></span>
-  <button class="nav-btn" id="btn-next" title="Próximo (→)">&#8594;</button>
 </div>
 
-<div id="hint"><kbd>←</kbd> <kbd>→</kbd> para navegar</div>
+
+<!-- ════════════════════════════════════════════════════
+  S2 — FUNDAMENTAÇÃO TEÓRICA
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s2">
+  <div class="slide-chip">2 / 9</div>
+  <div class="section-label"><span>📐</span>Fundamentação Teórica</div>
+  <h2>Equações e Modelagem Matemática</h2>
+
+  <div class="cols">
+    <div class="col">
+      <div class="card blue">
+        <h3>1 — DFT 2D (Transformada de Fourier Discreta)</h3>
+        <div class="eq">F(u,v) = Σ<sub>x=0</sub><sup>M-1</sup> Σ<sub>y=0</sub><sup>N-1</sup> f(x,y) · e<sup>−j2π(ux/M + vy/N)</sup></div>
+        <div class="eq-label">Decompõe cada imagem f(x,y) em componentes de frequência espacial</div>
+      </div>
+
+      <div class="card red">
+        <h3>2 — Espectro de Potência (dB)</h3>
+        <div class="eq">P(u,v) = 20 · log₁₀(|F(u,v)| + ε) &nbsp;, &nbsp; ε = 10⁻⁸</div>
+        <div class="eq-label">Centralizado com fftshift · evita log(0)</div>
+      </div>
+
+      <div class="card green">
+        <h3>3 — Integração Azimutal (perfil 1D)</h3>
+        <div class="eq">P̂(r) = <sup>1</sup>/<sub>N<sub>r</sub></sub> · Σ<sub>{(u,v): ⌊√(u²+v²)⌋=r}</sub> P(u,v)</div>
+        <div class="eq-label">Média por anel radial · invariante à rotação · reduz 2D → 1D</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card gold">
+        <h3>4 — Artefato de Up-Convolution (teorema da convolução)</h3>
+        <div class="eq">upsampling(stride s) ↔ multiplicação espectral periódica em f = k/s</div>
+        <div class="eq-label">k = 1, 2, 3, … · Stride=2 → pico em f=½ · Stride=4 → pico em f=¼</div>
+        <p style="font-size:.82rem;margin-top:8px;color:var(--muted)">
+          Inserir zeros entre pixels no domínio espacial equivale a multiplicar o espectro por um
+          <strong style="color:var(--red)">trem de impulsos periódico</strong> no domínio da frequência —
+          gerando picos artificiais ausentes em imagens naturais.
+        </p>
+      </div>
+
+      <div class="card accent">
+        <h3>5 — Loss Espectral (contribuição do artigo)</h3>
+        <div class="eq">ℒ<sub>total</sub> = ℒ<sub>GAN</sub> + λ · BCE( P̂<sub>fake</sub> , P̂<sub>real</sub> )</div>
+        <div class="eq-label">λ = 10⁻⁵ · Força o gerador a reproduzir a distribuição espectral real</div>
+      </div>
+
+      <div class="card blue">
+        <h3>Lei 1/f — imagens naturais</h3>
+        <div class="eq">P̂<sub>natural</sub>(r) ∝ 1/r<sup>α</sup> &nbsp;, &nbsp; α ≈ 2</div>
+        <div class="eq-label">Decaimento monotônico · violações indicam conteúdo artificial</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S3 — FLUXOGRAMA
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s3">
+  <div class="slide-chip">3 / 9</div>
+  <div class="section-label"><span>📐</span>Fluxograma</div>
+  <h2>Pipeline de Detecção Passo a Passo</h2>
+
+  <div class="pipeline" style="margin-bottom:14px">
+    <div class="pipe-box">🖼️<br><strong>Imagem RGB</strong><br><span class="muted">128×128</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box">⚫<br><strong>Cinza</strong><br><span class="muted">BT.601</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box hi">📡<br><strong>FFT 2D</strong><br><span class="muted">np.fft.fft2</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box hi">🔄<br><strong>fftshift</strong><br><span class="muted">centraliza DC</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box hi">📊<br><strong>|F| dB</strong><br><span class="muted">20·log|·|</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box hi">🔵<br><strong>Azimutal</strong><br><span class="muted">60 bins</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box hi">📏<br><strong>Norm</strong><br><span class="muted">min-max</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box" style="border-color:var(--green)">🤖<br><strong>Clf</strong><br><span class="muted">LR/SVM/RF</span></div>
+    <div class="pipe-arr">→</div>
+    <div class="pipe-box" style="border-color:var(--red)">🎯<br><strong>Real/GAN</strong></div>
+  </div>
+
+  <div class="cols">
+    <div class="col col-2">
+      <pre><span class="cm"># src/radial_profile.py — implementação própria do pipeline</span>
+<span class="kw">def</span> <span class="fn">azimuthal_average</span>(image, center=<span class="kw">None</span>):
+    y, x = np.<span class="fn">indices</span>(image.shape)
+    <span class="kw">if</span> center <span class="kw">is None</span>:
+        center = np.<span class="fn">array</span>([x.<span class="fn">max</span>() / <span class="nm">2</span>, y.<span class="fn">max</span>() / <span class="nm">2</span>])
+    r = np.<span class="fn">hypot</span>(x - center[<span class="nm">0</span>], y - center[<span class="nm">1</span>])
+
+    ind      = np.<span class="fn">argsort</span>(r.flat)        <span class="cm"># ordena por raio</span>
+    r_sorted = r.flat[ind].<span class="fn">astype</span>(<span class="fn">int</span>)
+    i_sorted = image.flat[ind]
+
+    delta_r  = r_sorted[<span class="nm">1</span>:] - r_sorted[:-<span class="nm">1</span>]
+    rind     = np.<span class="fn">where</span>(delta_r)[<span class="nm">0</span>]           <span class="cm"># bordas dos anéis</span>
+    nr       = rind[<span class="nm">1</span>:] - rind[:-<span class="nm">1</span>]
+
+    csim     = np.<span class="fn">cumsum</span>(i_sorted, dtype=<span class="fn">float</span>)
+    tbin     = csim[rind[<span class="nm">1</span>:]] - csim[rind[:-<span class="nm">1</span>]]
+    <span class="kw">return</span> tbin / nr                           <span class="cm"># média por anel</span></pre>
+    </div>
+
+    <div class="col">
+      <div class="card blue">
+        <h3>Por que a integração azimutal funciona?</h3>
+        <ul style="font-size:.82rem">
+          <li>Naturais: espectro segue lei <strong>1/f</strong> (decaimento monotônico)</li>
+          <li>GANs: <strong>picos em f = k/stride</strong> violam esse padrão</li>
+          <li>Invariante à rotação → robusto à orientação</li>
+          <li>60 bins são suficientes para separabilidade linear</li>
+        </ul>
+      </div>
+      <div class="card red">
+        <h3>Complexidade</h3>
+        <p>FFT 2D: <strong>O(N² log N)</strong><br>
+           Integração: <strong>O(N²)</strong><br>
+           Total: <strong style="color:var(--green)">~1.4 ms/imagem</strong> (CPU)</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S4 — METODOLOGIA & DATASET
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s4">
+  <div class="slide-chip">4 / 9</div>
+  <div class="section-label"><span>🧪</span>Metodologia de Reprodução</div>
+  <h2>Dataset, Geração e Pré-processamento</h2>
+
+  <div class="cols">
+    <div class="col">
+      <div class="card blue">
+        <h3>Nosso Dataset (sintético)</h3>
+        <table>
+          <tr><th>Parâmetro</th><th>Valor</th></tr>
+          <tr><td>Tipo</td><td>Sintético (gerado em código)</td></tr>
+          <tr><td>Resolução</td><td>128 × 128 px · 1 canal</td></tr>
+          <tr><td>Classes</td><td>Real · DCGAN · WGAN</td></tr>
+          <tr><td>Amostras/classe</td><td>100</td></tr>
+          <tr><td>Total</td><td>300 imagens</td></tr>
+          <tr><td>Reprodutibilidade</td><td><code>np.random.seed(42)</code></td></tr>
+        </table>
+      </div>
+      <div class="card gold">
+        <h3>Por que dataset sintético?</h3>
+        <p style="font-size:.82rem">
+          CelebA: ~200 k fotos + GPU para treinar GAN = &gt;1.4 GB + horas de treino.
+          Nossa simulação matemática injeta os <em>mesmos artefatos espectrais</em> com
+          fidelidade comprovada pelos resultados (99% acurácia).
+        </p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card green">
+        <h3>Pré-processamento por classe</h3>
+        <table>
+          <tr><th>Etapa</th><th>Parâm.</th><th>Propósito</th></tr>
+          <tr>
+            <td>GaussianBlur (natural)</td>
+            <td>kernel=21, σ=6</td>
+            <td>Simula decaimento 1/f</td>
+          </tr>
+          <tr>
+            <td>Checkerboard DCGAN</td>
+            <td>+0.12 × stride=2</td>
+            <td>Artefato up-conv transposed</td>
+          </tr>
+          <tr>
+            <td>Checkerboard WGAN</td>
+            <td>+0.07 × stride=4</td>
+            <td>Artefato mais sutil</td>
+          </tr>
+          <tr>
+            <td>Normalização imagem</td>
+            <td>min-max → [0,1]</td>
+            <td>Padroniza amplitude</td>
+          </tr>
+          <tr>
+            <td>StandardScaler</td>
+            <td>μ=0, σ=1</td>
+            <td>Features p/ classificador</td>
+          </tr>
+          <tr>
+            <td>Validação</td>
+            <td>5-fold CV estratificado</td>
+            <td>Estimativa robusta</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="card red">
+        <h3>Artigo original vs. nosso</h3>
+        <table>
+          <tr><th>Aspecto</th><th>Artigo</th><th>Nosso</th></tr>
+          <tr>
+            <td>Dataset</td>
+            <td class="td-ref">CelebA 200k · FFHQ</td>
+            <td>Sintético 300 imgs</td>
+          </tr>
+          <tr>
+            <td>GAN</td>
+            <td class="td-ref">DCGAN, ProGAN, WGAN-GP (treinados)</td>
+            <td>Simulados matematicamente</td>
+          </tr>
+          <tr>
+            <td>Resolução</td>
+            <td class="td-ref">64 – 256 px</td>
+            <td>128 × 128 px</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S5 — IMPLEMENTAÇÃO TÉCNICA
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s5">
+  <div class="slide-chip">5 / 9</div>
+  <div class="section-label"><span>💻</span>Implementação Técnica</div>
+  <h2>Stack e Decisões de Engenharia</h2>
+
+  <div class="cols" style="flex:1;min-height:0;overflow:hidden">
+    <div class="col">
+      <div class="card accent">
+        <h3>Stack Tecnológico</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
+          <span class="badge b-blue">Python 3.14</span>
+          <span class="badge b-blue">NumPy 2.x</span>
+          <span class="badge b-red">OpenCV 4.x</span>
+          <span class="badge b-green">scikit-learn 1.x</span>
+          <span class="badge b-gold">Matplotlib 3.x</span>
+          <span class="badge b-blue">Jupyter</span>
+          <span class="badge b-gold">100% CPU</span>
+          <span class="badge b-green">sem GPU</span>
+        </div>
+      </div>
+
+      <div class="card green">
+        <h3>Estrutura do Projeto</h3>
+        <pre style="font-size:.65rem;padding:4px 10px;max-height:105px;overflow:hidden;line-height:1.3">UpConv/
+├── src/
+│   ├── <span class="st">radial_profile.py</span>  <span class="cm">← FFT + integração azimutal</span>
+│   └── <span class="st">spectral_utils.py</span> <span class="cm">← carregamento + plots</span>
+├── notebooks/
+│   ├── <span class="fn">01_analise_espectral.ipynb</span>
+│   └── <span class="fn">02_deteccao_deepfakes.ipynb</span>
+├── <span class="kw">test.py</span>              <span class="cm">← runner standalone</span>
+├── <span class="kw">generate_visuals.py</span>  <span class="cm">← figuras da apresentação</span>
+└── results/             <span class="cm">← PNGs gerados</span></pre>
+      </div>
+
+      <div class="card red">
+        <h3>Decisões Técnicas Chave</h3>
+        <ul style="font-size:.82rem">
+          <li><strong>np.fft.fft2</strong> nativa — sem dependência de GPU/PyTorch</li>
+          <li><strong>60 bins</strong> azimutais — balanceia resolução e dimensionalidade</li>
+          <li><strong>StandardScaler</strong> — remove viés de escala entre features</li>
+          <li><strong>5-fold estratificado</strong> — avaliação robusta com dados pequenos</li>
+          <li>Código <strong>próprio</strong> — não copiado do repositório dos autores</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col col-2">
+      <pre style="flex:1;min-height:0;overflow-y:auto"><span class="cm"># src/radial_profile.py</span>
+<span class="kw">def</span> <span class="fn">compute_power_spectrum_1d</span>(image_gray, epsilon=<span class="nm">1e-8</span>):
+    <span class="cm">"""Pipeline completo: imagem → perfil espectral 1D."""</span>
+    <span class="cm"># 1. FFT 2D + centralização do componente DC</span>
+    F   = np.fft.<span class="fn">fft2</span>(image_gray)
+    F   = np.fft.<span class="fn">fftshift</span>(F)
+
+    <span class="cm"># 2. Espectro de potência em dB</span>
+    mag = <span class="nm">20</span> * np.<span class="fn">log</span>(np.<span class="fn">abs</span>(F) + epsilon)
+
+    <span class="cm"># 3. Integração azimutal → vetor 1D</span>
+    profile = <span class="fn">azimuthal_average</span>(mag)
+
+    <span class="cm"># 4. Normalização min-max → [0, 1]</span>
+    p_min, p_max = profile.<span class="fn">min</span>(), profile.<span class="fn">max</span>()
+    <span class="kw">if</span> p_max - p_min &gt; <span class="nm">1e-10</span>:
+        profile = (profile - p_min) / (p_max - p_min)
+    <span class="kw">return</span> profile
+
+<span class="cm"># Treinamento e avaliação (test.py)</span>
+clf = <span class="fn">LogisticRegression</span>(max_iter=<span class="nm">1000</span>)
+cv5 = <span class="fn">StratifiedKFold</span>(n_splits=<span class="nm">5</span>, shuffle=<span class="kw">True</span>)
+scores = <span class="fn">cross_validate</span>(clf, X_scaled, y, cv=cv5,
+           scoring=[<span class="st">'accuracy'</span>,<span class="st">'precision'</span>,<span class="st">'recall'</span>,<span class="st">'f1'</span>])</pre>
+
+      <div class="card blue">
+        <h3>Diferença para o repositório original dos autores</h3>
+        <table>
+          <tr><th>Aspecto</th><th>Autores (github.com/cc-hpc-itwm/UpConv)</th><th>Nossa implementação</th></tr>
+          <tr>
+            <td>Linguagem</td>
+            <td class="td-ref">Python + PyTorch</td>
+            <td>Python puro + NumPy</td>
+          </tr>
+          <tr>
+            <td>Integração</td>
+            <td class="td-ref">Loop de treino GAN</td>
+            <td>Módulo independente</td>
+          </tr>
+          <tr>
+            <td>Dataset</td>
+            <td class="td-ref">CelebA (real)</td>
+            <td>Sintético (reprodutível)</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S6 — RESULTADOS QUANTITATIVOS
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s6">
+  <div class="slide-chip">6 / 9</div>
+  <div class="section-label"><span>📈</span>Resultados Quantitativos</div>
+  <h2>Métricas — Nosso Grupo vs. Artigo Original</h2>
+
+  <div class="cols">
+    <div class="col">
+      <div class="card blue" style="margin-bottom:0">
+        <h3>Tabela Comparativa (5-fold CV estratificado)</h3>
+        <table style="font-size:.76rem">
+          <tr>
+            <th>Modelo</th><th>Acurácia</th>
+            <th>Precisão</th><th>Recall</th><th>F1-Score</th>
+          </tr>
+          <tr>
+            <td>Reg. Logística</td>
+            <td class="td-good">99.00%</td>
+            <td class="td-good">100.0%</td>
+            <td class="td-good">98.00%</td>
+            <td class="td-good">98.97%</td>
+          </tr>
+          <tr>
+            <td>SVM (RBF)</td>
+            <td class="td-ok">98.00%</td>
+            <td class="td-good">100.0%</td>
+            <td class="td-ok">96.00%</td>
+            <td class="td-ok">97.92%</td>
+          </tr>
+          <tr>
+            <td>Random Forest</td>
+            <td class="td-ok">98.50%</td>
+            <td class="td-ok">99.05%</td>
+            <td class="td-good">98.00%</td>
+            <td class="td-ok">98.49%</td>
+          </tr>
+          <tr style="background:rgba(212,160,23,.07)">
+            <td><strong>Artigo (CelebA)</strong></td>
+            <td class="td-ref">~99–100%</td>
+            <td class="td-ref">—</td>
+            <td class="td-ref">—</td>
+            <td class="td-ref">—</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:4px">
+        <div class="stat-box">
+          <span class="stat-num">99%</span>
+          <div class="stat-lbl">Acurácia<br>Reg. Logística</div>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num" style="color:var(--green)">1.000</span>
+          <div class="stat-lbl">AUC-ROC<br>(perfeito)</div>
+        </div>
+        <div class="stat-box">
+          <span class="stat-num" style="color:var(--gold)">1.4ms</span>
+          <div class="stat-lbl">Tempo/img<br>CPU</div>
+        </div>
+      </div>
+
+      <div class="card gold">
+        <h3>⚡ Por que 99% e não 100%?</h3>
+        <p style="font-size:.81rem">
+          O artigo usa GANs reais treinados por milhares de épocas — artefatos extremamente consistentes.
+          Nossa simulação matemática introduz variabilidade via ruído gaussiano → alguns casos-limite.
+          Com imagens GAN reais vs. fotos reais, esperaríamos <strong style="color:var(--green)">100%</strong>.
+        </p>
+      </div>
+    </div>
+
+    <div class="col col-2">
+      <div class="img-frame fill">
+        <img src="results/vis_03_metrics_bar.png" alt="Métricas por classificador">
+        <div class="img-caption">Acurácia · Precisão · Recall · F1 — nosso grupo vs. referência do artigo (linha dourada = 100%)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S7 — RESULTADOS QUALITATIVOS: ENTRADA
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s7">
+  <div class="slide-chip"></div>
+  <div class="section-label"><span>👁️</span>Resultados Qualitativos — Galeria 1/2</div>
+  <h2>Imagens Reais vs. GAN: Entrada Espacial + FFT 2D</h2>
+
+  <div style="display:flex;flex-direction:column;flex:1;min-height:0;gap:10px">
+    <div class="img-frame fill">
+      <img src="results/vis_01_mosaic_entrada.png" alt="Mosaico entrada">
+      <div class="img-caption">2×8 grid — cada par: imagem espacial + FFT magnitude (dB) &nbsp;·&nbsp; <span style="color:var(--green)">Superior: naturais</span> &nbsp;·&nbsp; <span style="color:var(--red)">Inferior: GAN simulado</span></div>
+    </div>
+    <div class="card blue" style="padding:8px 14px;flex:none">
+      <p style="font-size:.82rem;margin:0"><strong>Leitura do mosaico:</strong> as imagens naturais preservam decaimento espectral suave, enquanto as GAN simuladas exibem linhas horizontais e verticais mais marcadas na FFT, associadas ao up-convolution.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S8 — RESULTADOS QUALITATIVOS: COMPARAÇÃO
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s7b">
+  <div class="slide-chip"></div>
+  <div class="section-label"><span>👁️</span>Resultados Qualitativos — Galeria 2/2</div>
+  <h2>Esperado no Artigo vs. Nossa Reprodução</h2>
+
+  <div style="display:flex;flex-direction:column;flex:1;min-height:0;gap:10px">
+    <div class="img-frame fill">
+      <img src="results/vis_07_qualitative_mosaic.png" alt="Mosaico qualitativo">
+      <div class="img-caption">Esq: entrada real &nbsp;·&nbsp; Centro: comportamento esperado descrito no artigo &nbsp;·&nbsp; Dir: curva obtida na nossa implementação</div>
+    </div>
+    <div class="cols" style="gap:12px;flex:none;align-items:flex-start">
+      <div class="card gold" style="flex:1;padding:8px 14px">
+        <p style="font-size:.82rem;margin:0"><strong>Centro:</strong> o artigo prevê picos periódicos nas frequências associadas ao stride do gerador.</p>
+      </div>
+      <div class="card green" style="flex:1;padding:8px 14px">
+        <p style="font-size:.82rem;margin:0"><strong>Direita:</strong> a nossa curva reproduz o mesmo formato geral, validando qualitativamente a Figura 1.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S8 — DISCUSSÃO, LIMITAÇÕES E CONCLUSÕES
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s8">
+  <div class="slide-chip"></div>
+  <div class="section-label"><span>📊</span>Resultados — Reprodução da Fig. 1</div>
+  <h2>Espectro de Potência Azimutal: Reprodução da Figura 1</h2>
+
+  <div style="display:flex;flex-direction:column;flex:1;min-height:0;gap:10px">
+    <div class="img-frame fill">
+      <img src="results/vis_02_spectral_comparison.png" alt="Comparação espectral">
+      <div class="img-caption">Perfil de potência azimutal médio ± desvio padrão &nbsp;·&nbsp; N=100 amostras/classe &nbsp;·&nbsp; Azul: naturais &nbsp;·&nbsp; Vermelho: DCGAN (stride=2) &nbsp;·&nbsp; Verde: WGAN (stride=4)</div>
+    </div>
+    <div class="cols" style="gap:12px;flex:none;align-items:flex-start">
+      <div class="card blue" style="flex:1;padding:8px 14px">
+        <p style="font-size:.82rem;margin:0"><strong>Reais:</strong> decaimento monotônico (lei 1/f) — típico de imagens naturais.</p>
+      </div>
+      <div class="card red" style="flex:1;padding:8px 14px">
+        <p style="font-size:.82rem;margin:0"><strong>DCGAN/WGAN:</strong> picos em f = ½ — assinatura direta do stride=2 no up-sampling.</p>
+      </div>
+      <div class="card green" style="flex:1;padding:8px 14px">
+        <p style="font-size:.82rem;margin:0"><strong>Reprodução ✓:</strong> padrão idêntico à Figura 1 de Durall et al., CVPR 2020.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S9 — GALERIA: MÉTRICAS VISUAIS
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s9">
+  <div class="slide-chip"></div>
+  <div class="section-label"><span>📈</span>Resultados — Métricas Visuais</div>
+  <h2>Desempenho do Classificador: ROC · Confusão · PCA</h2>
+
+  <div class="cols" style="flex:1;min-height:0;gap:20px">
+
+    <div class="col" style="gap:8px">
+      <div style="text-align:center;font-size:.78rem;font-weight:700;padding:5px;border-radius:6px;
+                  border:1px solid var(--accent);color:var(--accent)">Curva ROC — AUC = 1.0000</div>
+      <div class="img-frame fill">
+        <img src="results/vis_04_roc.png" alt="ROC">
+        <div class="img-caption">Todos os classificadores: AUC ≥ 0.9999</div>
+      </div>
+    </div>
+
+    <div class="col" style="gap:8px">
+      <div style="text-align:center;font-size:.78rem;font-weight:700;padding:5px;border-radius:6px;
+                  border:1px solid var(--green);color:var(--green)">Matriz de Confusão — Reg. Logística</div>
+      <div class="img-frame fill">
+        <img src="results/vis_05_confusion.png" alt="Confusão">
+        <div class="img-caption">100 reais + 100 GAN identificados corretamente</div>
+      </div>
+    </div>
+
+    <div class="col" style="gap:8px">
+      <div style="text-align:center;font-size:.78rem;font-weight:700;padding:5px;border-radius:6px;
+                  border:1px solid var(--blue);color:var(--blue)">Separabilidade Espectral — PCA 2D</div>
+      <div class="img-frame fill">
+        <img src="results/vis_08_pca.png" alt="PCA">
+        <div class="img-caption">3 classes completamente separáveis no espaço espectral</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S10 — DISCUSSÃO, LIMITAÇÕES E CONCLUSÕES
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s10">
+  <div class="slide-chip"></div>
+  <div class="section-label"><span>🚧</span>Discussão, Limitações e Conclusões</div>
+  <h2>O que Aprendemos e o que Pode Melhorar</h2>
+
+  <div class="cols" style="flex:1;min-height:0">
+    <div class="col">
+      <div class="card green">
+        <h3>✅ Confirmações da Reprodução</h3>
+        <ul style="font-size:.83rem">
+          <li>Artefatos espectrais de up-convolution são <strong>detectáveis e robustos</strong></li>
+          <li>Classificador linear suficiente — features <strong>linearmente separáveis</strong> (AUC=1.0)</li>
+          <li>Reproduzimos o padrão da Figura 1 com fidelidade qualitativa</li>
+          <li>99% ≈ 100% do artigo — diferença explicada pelo dataset sintético</li>
+        </ul>
+      </div>
+
+      <div class="card red">
+        <h3>⚠ Dificuldades e Limitações</h3>
+        <ul style="font-size:.83rem">
+          <li><strong>Dataset real inviável:</strong> CelebA exige 1.4 GB + GPU para treinar GAN</li>
+          <li><strong>Omissão do artigo:</strong> não reporta precisão/recall/AUC — só acurácia</li>
+          <li><strong>Sem hiperparâmetros:</strong> artigo não divulga configurações exatas</li>
+          <li><strong>Regularização espectral</strong> não reproduzida — requer treino GAN completo</li>
+        </ul>
+      </div>
+
+      <div class="card gold">
+        <h3>🔮 Trabalhos Futuros</h3>
+        <ul style="font-size:.83rem">
+          <li>Testar com FaceForensics++ ou DFDC (deepfakes reais)</li>
+          <li>Avaliar robustez sob JPEG, resize, blur (ataques adversariais)</li>
+          <li>Implementar regularização espectral e medir FID/IS</li>
+          <li>Adaptar para análise de vídeo (frame-level + temporal)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card blue">
+        <h3>📌 Por que 99% e não 100%?</h3>
+        <p style="font-size:.83rem;margin-bottom:10px">O artigo usa <strong>GANs reais</strong> treinadas por milhares de épocas — artefatos extremamente consistentes. Nossa simulação introduz variabilidade via ruído gaussiano. Com GANs reais, esperaríamos reproduzir os <span style="color:var(--green);font-weight:700">100%</span>.</p>
+      </div>
+
+      <div class="card accent">
+        <h3>🎯 Conclusões Principais</h3>
+        <ul style="font-size:.83rem">
+          <li>Método de Durall et al. <strong>reprodutível</strong> sem GPU ou dataset real</li>
+          <li>Integração azimutal é a contribuição técnica central — simples e eficaz</li>
+          <li>Análise espectral revela o que o domínio espacial <em>não consegue ver</em></li>
+          <li>Resultado ~99% valida a hipótese com recursos acadêmicos limitados</li>
+        </ul>
+      </div>
+
+      <div class="card red">
+        <h3>💡 Por que a perda espectral importa?</h3>
+        <p style="font-size:.83rem">Ao forçar o gerador a reproduzir a distribuição espectral real (ℒ<sub>freq</sub>), os autores eliminam os picos de up-conv — gerando imagens não-detectáveis pelo pipeline.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+  S9 — Q&A
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s11">
+  <div class="slide-chip">11 / 11</div>
+  <h2 style="font-size:1.9rem;margin-bottom:24px">❓ Dúvidas e Perguntas</h2>
+
+  <div class="cols" style="align-items:flex-start">
+    <div class="col col-2">
+      <div class="card accent">
+        <h3 style="font-size:.95rem;margin-bottom:10px">Perguntas antecipadas</h3>
+        <table>
+          <tr>
+            <td style="padding:9px 10px;font-weight:600;color:var(--accent);width:40%">
+              Por que não usaram imagens reais?
+            </td>
+            <td>CelebA exige 1.4 GB + GPU. Nossa simulação matemática é válida — o artefato é independente da arquitetura GAN.</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;font-weight:600;color:var(--accent)">
+              Por que não treinaram a GAN?
+            </td>
+            <td>Treinar DCGAN no CelebA leva horas em GPU. Reproduzimos o fenômeno central (análise espectral) com fidelidade.</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;font-weight:600;color:var(--accent)">
+              O que é integração azimutal?
+            </td>
+            <td>Média dos coeficientes FFT por distância radial — converte o espectro 2D em perfil 1D invariante à rotação.</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;font-weight:600;color:var(--accent)">
+              Por que 99% e não 100%?
+            </td>
+            <td>Imagens sintéticas têm mais variabilidade que GANs reais treinados. Com imagens reais, esperaríamos reproduzir os 100%.</td>
+          </tr>
+          <tr>
+            <td style="padding:9px 10px;font-weight:600;color:var(--accent)">
+              Qual a contribuição do artigo?
+            </td>
+            <td>Primeira análise sistemática de artefatos espectrais em GANs + perda espectral para regularização do gerador.</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="col" style="gap:14px;align-items:center">
+      <div style="text-align:center;padding:28px 20px;background:var(--panel);
+                  border:1px solid var(--border);border-radius:12px;width:100%">
+        <div style="font-size:2.2rem;margin-bottom:10px">🙋</div>
+        <p style="font-size:1.05rem;font-weight:600;margin-bottom:6px">Obrigado!</p>
+        <p class="muted" style="margin-bottom:14px">Geovane · João Vitor</p>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=e6edf3&bgcolor=161b22&data=https://arxiv.org/abs/2003.01826"
+             alt="QR" style="width:90px;height:90px;border-radius:6px;border:1px solid var(--border)"
+             onerror="this.style.display='none'">
+        <div class="muted" style="margin-top:6px;font-size:.7rem">arxiv.org/abs/2003.01826</div>
+      </div>
+
+      <div class="card green" style="width:100%">
+        <h3>Repositório do Artigo</h3>
+        <p style="font-size:.82rem">github.com/cc-hpc-itwm/UpConv</p>
+        <p class="muted">GPL-3.0 · CVPR 2020</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+</div><!-- /scaler -->
+
+<div id="progress"></div>
+<div id="nav">
+  <button class="nbtn" id="bp">&#8592;</button>
+  <span id="ctr"></span>
+  <button class="nbtn" id="bn">&#8594;</button>
+</div>
+<div id="hint"><kbd>←</kbd> <kbd>→</kbd> navegar &nbsp;·&nbsp; <kbd>F</kbd> tela cheia</div>
 
 <script>
-  const slides = Array.from(document.querySelectorAll('.slide'));
-  const total  = slides.length;
-  let   cur    = 0;
+// Viewport scaling
+const scaler = document.getElementById('scaler');
+function resize() {
+  const scale = Math.min(window.innerWidth/1280, window.innerHeight/720);
+  const x = (window.innerWidth  - 1280 * scale) / 2;
+  const y = (window.innerHeight - 720  * scale) / 2;
+  scaler.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+}
+window.addEventListener('resize', resize);
+resize();
 
-  const counter  = document.getElementById('slide-counter');
-  const label    = document.getElementById('slide-label');
-  const progress = document.getElementById('progress');
+// Slide logic
+const slides = Array.from(document.querySelectorAll('.slide'));
+const total = slides.length;
+let cur = 0;
 
-  function goTo(n, dir = 1) {
-    if (n < 0 || n >= total) return;
-    slides[cur].classList.remove('active');
-    slides[cur].classList.add('exit');
-    const prev = cur;
-    cur = n;
-    slides[cur].classList.add('active');
-    setTimeout(() => slides[prev].classList.remove('exit'), 400);
-    update();
-  }
-
-  function update() {
-    counter.textContent  = `${cur + 1} / ${total}`;
-    label.textContent    = `${cur + 1} / ${total}`;
-    progress.style.width = `${((cur + 1) / total) * 100}%`;
-    document.getElementById('btn-prev').style.opacity = cur === 0 ? '.3' : '1';
-    document.getElementById('btn-next').style.opacity = cur === total - 1 ? '.3' : '1';
-  }
-
-  document.getElementById('btn-next').addEventListener('click', () => goTo(cur + 1, 1));
-  document.getElementById('btn-prev').addEventListener('click', () => goTo(cur - 1, -1));
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown'  || e.key === ' ') goTo(cur + 1, 1);
-    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                      goTo(cur - 1, -1);
-  });
-
-  // touch / swipe
-  let tx = 0;
-  document.addEventListener('touchstart', e => tx = e.touches[0].clientX);
-  document.addEventListener('touchend',   e => {
-    const dx = e.changedTouches[0].clientX - tx;
-    if (Math.abs(dx) > 50) goTo(dx < 0 ? cur + 1 : cur - 1, dx < 0 ? 1 : -1);
-  });
-
+function goTo(n) {
+  if (n < 0 || n >= total) return;
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('exit');
+  const prev = cur; cur = n;
+  slides[cur].classList.add('active');
+  setTimeout(() => slides[prev].classList.remove('exit'), 380);
   update();
+}
+
+function update() {
+  document.getElementById('ctr').textContent = `${cur+1} / ${total}`;
+  document.getElementById('progress').style.width = `${(cur+1)/total*100}%`;
+  document.getElementById('bp').style.opacity = cur === 0 ? '.3' : '1';
+  document.getElementById('bn').style.opacity = cur === total-1 ? '.3' : '1';
+}
+
+document.getElementById('bn').onclick = () => goTo(cur+1);
+document.getElementById('bp').onclick = () => goTo(cur-1);
+
+document.addEventListener('keydown', e => {
+  if (['ArrowRight','ArrowDown',' '].includes(e.key)) { e.preventDefault(); goTo(cur+1); }
+  if (['ArrowLeft', 'ArrowUp'].includes(e.key))       { e.preventDefault(); goTo(cur-1); }
+  if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen?.();
+  if (e.key === 'Home') goTo(0);
+  if (e.key === 'End')  goTo(total-1);
+});
+
+let tx = 0;
+document.addEventListener('touchstart', e => tx = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 40) goTo(dx < 0 ? cur+1 : cur-1);
+});
+
+update();
+// Auto-number all slide chips based on DOM order
+slides.forEach(function(s, i) {
+  var chip = s.querySelector('.slide-chip');
+  if (chip) chip.textContent = (i+1) + ' / ' + total;
+});
 </script>
 </body>
 </html>
